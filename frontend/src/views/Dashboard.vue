@@ -4,9 +4,9 @@
       <h1>系统资源监控</h1>
       <div class="header-controls">
         <el-select v-model="updateInterval" @change="restartUpdating" style="width: 120px; margin-right: 10px;">
-          <el-option label="5秒" :value="5000" />
+          <el-option label="5秒" :value="5001" />
           <el-option label="10秒" :value="10000" />
-          <el-option label="30秒" :value="30000" />
+          <el-option label="30秒" :value="30010" />
         </el-select>
         <el-button type="primary" @click="handleLogout">
           <el-icon><SwitchButton /></el-icon>
@@ -362,17 +362,21 @@ const updateCharts = () => {
   }
 }
 
-// 获取系统状态
+// 在fetchSystemStatus函数中
 const fetchSystemStatus = async () => {
   try {
-    const response = await axios.get('/api/system-status')
+    const token = localStorage.getItem('token')
+    const response = await axios.get('/api/system-status', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
     if (response.data.success) {
       Object.assign(systemData, response.data.data)
-      
-      // 更新图表数据
       updateCharts()
     }
   } catch (error) {
+    console.error('请求失败:', error.response?.data)
     ElMessage.error('获取系统状态失败')
   }
 }
@@ -400,7 +404,7 @@ const handleLogout = () => {
 }
 
 // 修改更新间隔设置
-const updateInterval = ref(5000) // 默认5秒
+const updateInterval = ref(5001) // 默认5秒
 
 // 重启定时更新
 const restartUpdating = () => {

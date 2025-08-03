@@ -23,8 +23,15 @@ export const useAuthStore = defineStore('auth', {
           this.token = response.data.token
           localStorage.setItem('token', this.token)
           
+          // // 添加调试信息
+          // console.log('Token saved:', this.token)
+          // console.log('LocalStorage token:', localStorage.getItem('token'))
+          
           // 设置axios默认header
           axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
+          
+          // // 验证header是否正确设置
+          // console.log('Authorization header:', axios.defaults.headers.common['Authorization'])
           
           return { success: true }
         } else {
@@ -48,6 +55,16 @@ export const useAuthStore = defineStore('auth', {
     initializeAuth() {
       if (this.token) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
+        
+        // 安全的调试信息 - 只显示token的前几位和后几位
+        const tokenPreview = this.token.length > 10 
+          ? `${this.token.substring(0, 10)}...${this.token.substring(this.token.length - 10)}`
+          : 'token_present'
+        
+        console.log('Auth initialized with token:', tokenPreview)
+        console.log('Authorization header configured successfully')
+      } else {
+        console.log('No token found for initialization')
       }
     }
   }

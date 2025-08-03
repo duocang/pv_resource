@@ -46,8 +46,8 @@
       
       <div class="login-tips">
         <p>默认账户：</p>
-        <p>管理员 - admin / admin123</p>
-        <p>普通用户 - user / user123</p>
+        <p>管理员 - admin / 空</p>
+        <p>普通用户 - user / 空</p>
       </div>
     </el-card>
   </div>

@@ -61,8 +61,8 @@ docker-compose up -d
 ```
 
 3. 访问应用
-- 前端：http://localhost:3000
-- 后端API：http://localhost:5000
+- 前端：http://localhost:3001
+- 后端API：http://localhost:5001
 
 ### 方式二：本地开发
 

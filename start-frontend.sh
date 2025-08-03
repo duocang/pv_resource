@@ -8,7 +8,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 前端配置
-FRONTEND_PORT=3000
+FRONTEND_PORT=3001
 FRONTEND_URL="http://localhost:$FRONTEND_PORT"
 FRONTEND_PID_FILE="/tmp/frontend.pid"
 
