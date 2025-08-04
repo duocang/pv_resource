@@ -12,11 +12,21 @@ class LinuxSystemMonitor(BaseSystemMonitor):
     
     def get_cpu_info(self) -> Dict[str, Any]:
         """获取CPU信息"""
+        # 获取每个核心的使用率
+        per_cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
+        
         cpu_info = {
-            'percent': psutil.cpu_percent(interval=1),
+            'percent': psutil.cpu_percent(interval=0),  # 总体使用率
             'count_logical': psutil.cpu_count(logical=True),
             'count_physical': psutil.cpu_count(logical=False),
-            'per_cpu': psutil.cpu_percent(interval=1, percpu=True)
+            'per_cpu': per_cpu_percent,
+            'cores_detail': [  # 新增：每个核心的详细信息
+                {
+                    'core_id': i,
+                    'name': f'CPU Core {i}',
+                    'percent': percent
+                } for i, percent in enumerate(per_cpu_percent)
+            ]
         }
         
         # 获取CPU频率
@@ -79,7 +89,7 @@ class LinuxSystemMonitor(BaseSystemMonitor):
             cpu_info['brand'] = 'Unknown'
             cpu_info['cores'] = 0
             cpu_info['threads'] = 0
-    
+        
         # 获取CPU温度（Linux特有）
         try:
             temps = psutil.sensors_temperatures()

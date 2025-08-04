@@ -89,6 +89,39 @@
           </el-col>
         </el-row>
       </div>
+
+            <!-- 新增：多核心CPU使用率折线图 -->
+      <div class="cpu-cores-container">
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-card>
+              <template #header>
+                <h3>CPU各核心使用率趋势</h3>
+              </template>
+              <div ref="cpuCoresChart" class="chart-large"></div>
+              
+              <!-- CPU核心状态列表 -->
+              <div class="cpu-cores-status">
+                <div class="cores-grid">
+                  <div 
+                    v-for="(core, index) in systemData.cpu?.cores_detail || []" 
+                    :key="core.core_id"
+                    class="core-item"
+                  >
+                    <div 
+                      class="core-color-indicator" 
+                      :style="{ backgroundColor: getCoreColor(index) }"
+                    ></div>
+                    <span class="core-name">{{ core.name }}</span>
+                    <span class="core-percent">{{ core.percent?.toFixed(1) || 0 }}%</span>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+      
       
       <!-- 现有的图表容器 -->
       <div class="charts-container">
@@ -208,6 +241,7 @@ const authStore = useAuthStore()
 // 图表引用
 const cpuChart = ref()
 const memoryChart = ref()
+const cpuCoresChart = ref()  // 新增：多核心图表引用
 
 // 数据状态
 const systemData = reactive({})
@@ -218,6 +252,27 @@ let updateTimer = null
 // 添加网络数据历史记录
 let lastNetworkData = null
 let lastNetworkTime = null
+
+// 新增：CPU核心颜色配置
+const coreColors = [
+  '#409eff', '#67c23a', '#e6a23c', '#f56c6c', 
+  '#909399', '#c71585', '#ff6347', '#32cd32',
+  '#1e90ff', '#ff69b4', '#ffd700', '#8a2be2',
+  '#00ced1', '#ff4500', '#9acd32', '#dc143c',
+  '#409eff', '#67c23a', '#e6a23c', '#f56c6c', 
+  '#909399', '#c71585', '#ff6347', '#32cd32',
+  '#1e90ff', '#ff69b4', '#ffd700', '#8a2be2',
+  '#00ced1', '#ff4500', '#9acd32', '#dc143c',
+  '#409eff', '#67c23a', '#e6a23c', '#f56c6c', 
+  '#909399', '#c71585', '#ff6347', '#32cd32',
+  '#1e90ff', '#ff69b4', '#ffd700', '#8a2be2',
+  '#00ced1', '#ff4500', '#9acd32', '#dc143c'
+]
+
+// 获取核心颜色
+const getCoreColor = (index) => {
+  return coreColors[index % coreColors.length]
+}
 
 // 初始化图表
 const initCharts = () => {
@@ -281,6 +336,63 @@ const initCharts = () => {
       ]
     }]
   })
+
+// 新增：初始化多核心CPU图表
+  charts.cpuCores = echarts.init(cpuCoresChart.value)
+  charts.cpuCores.setOption({
+    title: { 
+      // text: 'CPU各核心使用率趋势',
+      textStyle: {
+        fontSize: 16,
+        fontWeight: 'normal'
+      },
+      left: 'center',
+      top: 10
+    },
+    tooltip: { 
+      trigger: 'axis',
+      formatter: function(params) {
+        let result = `时间: ${params[0].axisValue}<br/>`
+        params.forEach(param => {
+          result += `${param.seriesName}: ${param.value}%<br/>`
+        })
+        return result
+      }
+    },
+    legend: {
+      type: 'scroll',
+      orient: 'horizontal',
+      top: 40,
+      left: 'center',
+      data: []
+    },
+    grid: {
+      top: 10,      // 减少顶部空白
+      bottom: 0,   // 减少底部空白
+      left: 20,     // 减少左侧空白
+      right: 20,    // 减少右侧空白
+      containLabel: true  // 确保坐标轴标签完全显示
+    },
+    xAxis: { 
+      type: 'category', 
+      data: [],
+      axisLabel: {
+        rotate: 45,
+        fontSize: 12
+      }
+    },
+    yAxis: { 
+      type: 'value', 
+      min: 0, 
+      max: 100,
+      axisLabel: {
+        formatter: '{value}%',
+        fontSize: 12
+      }
+    },
+    series: []
+  })
+
 }
 
 // 更新图表数据
@@ -375,6 +487,62 @@ const updateCharts = () => {
           }
         ]
       }]
+    })
+  }
+
+
+    // 新增：更新多核心CPU图表
+  if (charts.cpuCores && systemData.cpu?.cores_detail) {
+    const option = charts.cpuCores.getOption()
+    const xData = option.xAxis[0].data
+    const coresData = systemData.cpu.cores_detail
+    
+    // 添加新时间点
+    xData.push(currentTime)
+    
+    // 保持最多60个数据点（5分钟数据）
+    if (xData.length > 60) {
+      xData.shift()
+    }
+    
+    // 更新每个核心的数据系列
+    const series = []
+    const legendData = []
+    
+    coresData.forEach((core, index) => {
+      const seriesName = core.name
+      legendData.push(seriesName)
+      
+      // 获取现有系列数据或创建新的
+      let seriesData = []
+      if (option.series && option.series[index]) {
+        seriesData = [...option.series[index].data]
+      }
+      
+      // 添加新数据点
+      seriesData.push(core.percent || 0)
+      
+      // 保持数据点数量一致
+      if (seriesData.length > 60) {
+        seriesData.shift()
+      }
+      
+      series.push({
+        name: seriesName,
+        type: 'line',
+        data: seriesData,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        itemStyle: { color: getCoreColor(index) },
+        lineStyle: { color: getCoreColor(index) }
+      })
+    })
+    
+    charts.cpuCores.setOption({
+      // legend: { data: legendData },
+      xAxis: { data: xData },
+      series: series
     })
   }
 }
@@ -604,5 +772,57 @@ onUnmounted(() => {
 
 .el-table .el-table__cell {
   padding: 8px 0;
+}
+
+/* 新增样式 */
+.cpu-cores-container {
+  margin-bottom: 20px;
+}
+
+.chart-large {
+  height: 400px;
+}
+
+.cpu-cores-status {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ebeef5;
+}
+
+.cores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px;
+}
+
+.core-item {
+  display: flex;
+  align-items: center;
+  padding: 1px 1px;
+  /* background: #f8f9fa; */
+  /* border-radius: 6px; */
+  /* border: 1px solid #e9ecef; */ /* 去掉外边框 */
+  width: 150px;
+}
+
+.core-color-indicator {
+  width: 16px;      /* 增大矩形方块：从12px改为16px */
+  height: 16px;     /* 增大矩形方块：从12px改为16px */
+  border-radius: 1px; /* 稍微调整圆角：从2px改为3px */
+  margin-right: 3px;
+  flex-shrink: 0;
+}
+
+.core-name {
+  flex: 1;
+  font-size: 14px;
+  color: #606266;
+}
+
+.core-percent {
+  font-weight: 600;
+  color: #303133;
+  font-size: 14px;
+  /* margin-right: 30px; */
 }
 </style>
