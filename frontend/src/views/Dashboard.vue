@@ -90,7 +90,7 @@
         </el-row>
       </div>
 
-            <!-- 新增：多核心CPU使用率折线图 -->
+      <!-- 新增：多核心CPU使用率折线图 -->
       <div class="cpu-cores-container">
         <el-row :gutter="20">
           <el-col :span="24">
@@ -121,6 +121,65 @@
           </el-col>
         </el-row>
       </div>
+
+      <!-- 新增：内存和交换空间使用率图表 -->
+      <div class="memory-swap-container">
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-card>
+              <template #header>
+                <h3>内存和交换空间使用率趋势</h3>
+              </template>
+              <div ref="memorySwapChart" class="chart-large"></div>
+              
+              <!-- 内存和交换空间环形图 -->
+              <div class="memory-swap-rings">
+                <div class="ring-container-flex">
+                  <h4>内存使用情况</h4>
+                  <div class="ring-content">
+                    <div ref="memoryRingChart" class="ring-chart-left"></div>
+                    <div class="ring-info">
+                      <div class="info-item">
+                        <span class="label">已用:</span>
+                        <span class="value">{{ formatBytesToGB(systemData.memory?.virtual?.used || 0) }} ({{ (systemData.memory?.virtual?.percent || 0).toFixed(1) }}%)</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="label">总计:</span>
+                        <span class="value">{{ formatBytesToGB(systemData.memory?.virtual?.total || 0) }}</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="label">缓存:</span>
+                        <span class="value">{{ formatBytesToGB(systemData.memory?.virtual?.cached || 0) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="ring-container-flex">
+                  <h4>交换空间使用情况</h4>
+                  <div class="ring-content">
+                    <div ref="swapRingChart" class="ring-chart-left"></div>
+                    <div class="ring-info">
+                      <div class="info-item">
+                        <span class="label">已用:</span>
+                        <span class="value">{{ formatBytesToGB(systemData.memory?.swap?.used || 0) }} ({{ (systemData.memory?.swap?.percent || 0).toFixed(1) }}%)</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="label">总计:</span>
+                        <span class="value">{{ formatBytesToGB(systemData.memory?.swap?.total || 0) }}</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="label">可用:</span>
+                        <span class="value">{{ formatBytesToGB(systemData.memory?.swap?.free || 0) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+      
       
       
       <!-- 现有的图表容器 -->
@@ -242,6 +301,9 @@ const authStore = useAuthStore()
 const cpuChart = ref()
 const memoryChart = ref()
 const cpuCoresChart = ref()  // 新增：多核心图表引用
+const memorySwapChart = ref()  // 新增：内存和交换空间折线图引用
+const memoryRingChart = ref()  // 新增：内存环形图引用
+const swapRingChart = ref()    // 新增：交换空间环形图引用
 
 // 数据状态
 const systemData = reactive({})
@@ -393,6 +455,173 @@ const initCharts = () => {
     series: []
   })
 
+    // 新增：初始化内存和交换空间折线图
+  charts.memorySwap = echarts.init(memorySwapChart.value)
+  charts.memorySwap.setOption({
+    title: { 
+      textStyle: {
+        fontSize: 16,
+        fontWeight: 'normal'
+      },
+      left: 'center',
+      top: 10
+    },
+    tooltip: { 
+      trigger: 'axis',
+      formatter: function(params) {
+        let result = `时间: ${params[0].axisValue}<br/>`
+        params.forEach(param => {
+          result += `${param.seriesName}: ${param.value}%<br/>`
+        })
+        return result
+      }
+    },
+    legend: {
+      type: 'scroll',
+      orient: 'horizontal',
+      top: 40,
+      left: 'center',
+      data: ['内存使用率', '交换空间使用率']
+    },
+    grid: {
+      top: 80,
+      bottom: 60,
+      left: 50,
+      right: 50,
+      containLabel: true
+    },
+    xAxis: { 
+      type: 'category', 
+      data: [],
+      axisLabel: {
+        rotate: 45,
+        fontSize: 12
+      }
+    },
+    yAxis: { 
+      type: 'value', 
+      min: 0, 
+      max: 100,
+      axisLabel: {
+        formatter: '{value}%',
+        fontSize: 12
+      }
+    },
+    series: [
+      {
+        name: '内存使用率',
+        type: 'line',
+        data: [],
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        itemStyle: { color: '#67c23a' },
+        lineStyle: { color: '#67c23a' }
+      },
+      {
+        name: '交换空间使用率',
+        type: 'line',
+        data: [],
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        itemStyle: { color: '#e6a23c' },
+        lineStyle: { color: '#e6a23c' }
+      }
+    ]
+  })
+
+  // 新增：初始化内存环形图
+  charts.memoryRing = echarts.init(memoryRingChart.value)
+  charts.memoryRing.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: function(params) {
+        return `${params.name}: ${params.value} GB (${params.percent}%)`
+      }
+    },
+    series: [{
+      name: '内存使用',
+      type: 'pie',
+      radius: ['50%', '80%'],
+      center: ['50%', '50%'],
+      avoidLabelOverlap: false,
+      label: {
+        show: true,
+        position: 'center',
+        formatter: function(params) {
+          if (params.name === '已使用') {
+            return `{title|${params.value} GB}\n{subtitle|(${params.percent}%)}`
+          }
+          return ''
+        },
+        rich: {
+          title: {
+            fontSize: 16,
+            fontWeight: 'bold',
+            color: '#333'
+          },
+          subtitle: {
+            fontSize: 12,
+            color: '#999'
+          }
+        }
+      },
+      labelLine: {
+        show: false
+      },
+      data: [
+        { value: 0, name: '已使用', itemStyle: { color: '#67c23a' } },
+        { value: 0, name: '可用', itemStyle: { color: '#e6f7ff' } }
+      ]
+    }]
+  })
+
+  // 新增：初始化交换空间环形图
+  charts.swapRing = echarts.init(swapRingChart.value)
+  charts.swapRing.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: function(params) {
+        return `${params.name}: ${params.value} GB (${params.percent}%)`
+      }
+    },
+    series: [{
+      name: '交换空间使用',
+      type: 'pie',
+      radius: ['50%', '80%'],
+      center: ['50%', '50%'],
+      avoidLabelOverlap: false,
+      label: {
+        show: true,
+        position: 'center',
+        formatter: function(params) {
+          if (params.name === '已使用') {
+            return `{title|${params.value} GB}\n{subtitle|(${params.percent}%)}`
+          }
+          return ''
+        },
+        rich: {
+          title: {
+            fontSize: 16,
+            fontWeight: 'bold',
+            color: '#333'
+          },
+          subtitle: {
+            fontSize: 12,
+            color: '#999'
+          }
+        }
+      },
+      labelLine: {
+        show: false
+      },
+      data: [
+        { value: 0, name: '已使用', itemStyle: { color: '#e6a23c' } },
+        { value: 0, name: '可用', itemStyle: { color: '#f0f9ff' } }
+      ]
+    }]
+  })
 }
 
 // 更新图表数据
@@ -543,6 +772,112 @@ const updateCharts = () => {
       // legend: { data: legendData },
       xAxis: { data: xData },
       series: series
+    })
+  }
+
+  // 新增：更新内存和交换空间折线图
+if (charts.memorySwap && systemData.memory) {
+  const option = charts.memorySwap.getOption()
+  const xData = option.xAxis[0].data
+  
+  // 添加新时间点
+  xData.push(currentTime)
+  
+  // 保持最多60个数据点（5分钟数据）
+  if (xData.length > 60) {
+    xData.shift()
+  }
+  
+  // 更新内存使用率数据
+  let memorySeriesData = []
+  if (option.series && option.series[0]) {
+    memorySeriesData = [...option.series[0].data]
+  }
+  memorySeriesData.push(systemData.memory.virtual?.percent || 0)
+  if (memorySeriesData.length > 60) {
+    memorySeriesData.shift()
+  }
+  
+  // 更新交换空间使用率数据
+  let swapSeriesData = []
+  if (option.series && option.series[1]) {
+    swapSeriesData = [...option.series[1].data]
+  }
+  swapSeriesData.push(systemData.memory.swap?.percent || 0)
+  if (swapSeriesData.length > 60) {
+    swapSeriesData.shift()
+  }
+  
+  charts.memorySwap.setOption({
+    xAxis: { data: xData },
+    series: [
+      {
+        name: '内存使用率',
+        type: 'line',
+        data: memorySeriesData,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        itemStyle: { color: '#67c23a' },
+        lineStyle: { color: '#67c23a' }
+      },
+      {
+        name: '交换空间使用率',
+        type: 'line',
+        data: swapSeriesData,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        itemStyle: { color: '#e6a23c' },
+        lineStyle: { color: '#e6a23c' }
+      }
+    ]
+  })
+}
+
+  // 新增：更新内存环形图
+  if (charts.memoryRing && systemData.memory?.virtual) {
+    const virtual = systemData.memory.virtual
+    const used = virtual.used || 0
+    const total = virtual.total || 0
+    const available = virtual.available || 0
+    const cached = virtual.cached || 0
+    
+    const usedGB = (used / (1024 * 1024 * 1024)).toFixed(1)
+    const totalGB = (total / (1024 * 1024 * 1024)).toFixed(1)
+    const availableGB = (available / (1024 * 1024 * 1024)).toFixed(1)
+    const cachedGB = (cached / (1024 * 1024 * 1024)).toFixed(1)
+    const percent = ((used / total) * 100).toFixed(1)
+    
+    charts.memoryRing.setOption({
+      series: [{
+        data: [
+          { value: parseFloat(usedGB), name: '已使用', itemStyle: { color: '#67c23a' } },
+          { value: parseFloat(availableGB), name: '可用', itemStyle: { color: '#e6f7ff' } }
+        ]
+      }]
+    })
+  }
+
+  // 新增：更新交换空间环形图
+  if (charts.swapRing && systemData.memory?.swap) {
+    const swap = systemData.memory.swap
+    const used = swap.used || 0
+    const total = swap.total || 0
+    const free = swap.free || 0
+    
+    const usedGB = (used / (1024 * 1024 * 1024)).toFixed(1)
+    const totalGB = (total / (1024 * 1024 * 1024)).toFixed(1)
+    const freeGB = (free / (1024 * 1024 * 1024)).toFixed(1)
+    const percent = total > 0 ? ((used / total) * 100).toFixed(1) : '0.0'
+    
+    charts.swapRing.setOption({
+      series: [{
+        data: [
+          { value: parseFloat(usedGB), name: '已使用', itemStyle: { color: '#e6a23c' } },
+          { value: parseFloat(freeGB), name: '可用', itemStyle: { color: '#f0f9ff' } }
+        ]
+      }]
     })
   }
 }
@@ -779,10 +1114,6 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
-.chart-large {
-  height: 400px;
-}
-
 .cpu-cores-status {
   margin-top: 10px;
   padding-top: 10px;
@@ -824,5 +1155,106 @@ onUnmounted(() => {
   color: #303133;
   font-size: 14px;
   /* margin-right: 30px; */
+}
+
+.memory-swap-container {
+  margin-bottom: 20px;
+}
+
+.memory-swap-rings {
+  margin-top: 0px;
+  padding: 0px 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 350px;
+  flex-wrap: wrap;
+}
+
+.ring-container {
+  text-align: center;
+}
+
+.ring-container h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #606266;
+}
+
+.ring-chart {
+  height: 200px;
+  width: 100%;
+}
+
+.ring-container-flex {
+  text-align: left;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ring-container-flex h4 {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  color: #606266;
+  text-align: center;
+}
+
+.ring-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.ring-chart-left {
+  height: 180px;
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.ring-info {
+  flex: 0 0 auto;
+  max-width: 180px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid #409eff;
+}
+
+.info-item .label {
+  font-weight: 500;
+  color: #606266;
+  font-size: 13px;
+}
+
+.info-item .value {
+  font-weight: 600;
+  color: #303133;
+  font-size: 13px;
+}
+
+/* 为内存和交换空间设置不同的边框颜色 */
+.ring-container-flex:first-child .info-item {
+  border-left-color: #67c23a;
+}
+
+.ring-container-flex:last-child .info-item {
+  border-left-color: #e6a23c;
+}
+
+.chart-large {
+  height: 300px;
+  width: 100%;
 }
 </style>

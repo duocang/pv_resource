@@ -121,10 +121,12 @@ class LinuxSystemMonitor(BaseSystemMonitor):
                     'total': swap.total,
                     'used': swap.used,
                     'free': swap.free,
-                    'percent': swap.percent
+                    'percent': swap.percent,
+                    'sin': getattr(swap, 'sin', 0),   # 从磁盘交换到内存的字节数
+                    'sout': getattr(swap, 'sout', 0)  # 从内存交换到磁盘的字节数
                 }
             }
-            # print(memory_info)  # 打印返回的数据以便调试
+            print(memory_info)  # 打印返回的数据以便调试
             return memory_info
         except Exception as e:
             logger.error(f"获取内存信息失败: {e}")
