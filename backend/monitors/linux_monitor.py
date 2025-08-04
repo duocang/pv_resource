@@ -81,7 +81,7 @@ class LinuxSystemMonitor(BaseSystemMonitor):
             cpu_info['vendor'] = vendor_id
             cpu_info['family'] = cpu_family
             
-            print(f"解析到的CPU信息: 型号={cpu_model}, 核心数={cpu_cores}, 线程数={siblings}")
+            # print(f"解析到的CPU信息: 型号={cpu_model}, 核心数={cpu_cores}, 线程数={siblings}")
             
         except Exception as e:
             logger.error(f"解析/proc/cpuinfo失败: {e}")
@@ -126,7 +126,7 @@ class LinuxSystemMonitor(BaseSystemMonitor):
                     'sout': getattr(swap, 'sout', 0)  # 从内存交换到磁盘的字节数
                 }
             }
-            print(memory_info)  # 打印返回的数据以便调试
+            # print(memory_info)  # 打印返回的数据以便调试
             return memory_info
         except Exception as e:
             logger.error(f"获取内存信息失败: {e}")

@@ -336,6 +336,30 @@ const getCoreColor = (index) => {
   return coreColors[index % coreColors.length]
 }
 
+// 在script setup部分添加时间标签生成函数
+const generateTimeLabels = () => {
+  const labels = []
+  for (let i = 180; i >= 0; i -= 1) { // 180秒 = 3分钟，每秒一个点
+    if (i === 0) {
+      labels.push('当前')
+    } else if (i < 60) {
+      labels.push(`${i}秒前`)
+    } else {
+      const minutes = Math.floor(i / 60)
+      const seconds = i % 60
+      if (seconds === 0) {
+        labels.push(`${minutes}分前`)
+      } else {
+        labels.push(`${minutes}分${seconds}秒前`)
+      }
+    }
+  }
+  return labels
+}
+
+// 初始化数据数组
+const initDataArray = (length = 181) => new Array(length).fill(0)
+
 // 初始化图表
 const initCharts = () => {
   // CPU使用率趋势图
@@ -437,10 +461,11 @@ const initCharts = () => {
     },
     xAxis: { 
       type: 'category', 
-      data: [],
+      data: generateTimeLabels(),
       axisLabel: {
         rotate: 45,
-        fontSize: 12
+        fontSize: 10,
+        interval: 29
       }
     },
     yAxis: { 
@@ -492,10 +517,11 @@ const initCharts = () => {
     },
     xAxis: { 
       type: 'category', 
-      data: [],
+      data: generateTimeLabels(),
       axisLabel: {
         rotate: 45,
-        fontSize: 12
+        fontSize: 10,
+        interval: 29
       }
     },
     yAxis: { 
@@ -511,7 +537,7 @@ const initCharts = () => {
       {
         name: '内存使用率',
         type: 'line',
-        data: [],
+        data: initDataArray(181),
         smooth: true,
         symbol: 'circle',
         symbolSize: 4,
@@ -521,7 +547,7 @@ const initCharts = () => {
       {
         name: '交换空间使用率',
         type: 'line',
-        data: [],
+        data: initDataArray(181),
         smooth: true,
         symbol: 'circle',
         symbolSize: 4,
@@ -722,17 +748,8 @@ const updateCharts = () => {
 
     // 新增：更新多核心CPU图表
   if (charts.cpuCores && systemData.cpu?.cores_detail) {
-    const option = charts.cpuCores.getOption()
-    const xData = option.xAxis[0].data
     const coresData = systemData.cpu.cores_detail
-    
-    // 添加新时间点
-    xData.push(currentTime)
-    
-    // 保持最多60个数据点（5分钟数据）
-    if (xData.length > 60) {
-      xData.shift()
-    }
+    const timeLabels = generateTimeLabels()
     
     // 更新每个核心的数据系列
     const series = []
@@ -744,17 +761,16 @@ const updateCharts = () => {
       
       // 获取现有系列数据或创建新的
       let seriesData = []
+      const option = charts.cpuCores.getOption()
       if (option.series && option.series[index]) {
         seriesData = [...option.series[index].data]
+      } else {
+        seriesData = initDataArray(181) // 初始化181个数据点（3分钟 + 1个当前点）
       }
       
-      // 添加新数据点
+      // 移除第一个数据点，在末尾添加新数据点
+      seriesData.shift()
       seriesData.push(core.percent || 0)
-      
-      // 保持数据点数量一致
-      if (seriesData.length > 60) {
-        seriesData.shift()
-      }
       
       series.push({
         name: seriesName,
@@ -769,47 +785,52 @@ const updateCharts = () => {
     })
     
     charts.cpuCores.setOption({
-      // legend: { data: legendData },
-      xAxis: { data: xData },
+      xAxis: { 
+        data: timeLabels,
+        axisLabel: {
+          rotate: 45,
+          fontSize: 10,
+          interval: 29 // 每30秒显示一个标签，避免过于密集
+        }
+      },
       series: series
     })
   }
 
   // 新增：更新内存和交换空间折线图
 if (charts.memorySwap && systemData.memory) {
+  const timeLabels = generateTimeLabels()
   const option = charts.memorySwap.getOption()
-  const xData = option.xAxis[0].data
-  
-  // 添加新时间点
-  xData.push(currentTime)
-  
-  // 保持最多60个数据点（5分钟数据）
-  if (xData.length > 60) {
-    xData.shift()
-  }
   
   // 更新内存使用率数据
   let memorySeriesData = []
   if (option.series && option.series[0]) {
     memorySeriesData = [...option.series[0].data]
+  } else {
+    memorySeriesData = initDataArray(181)
   }
+  memorySeriesData.shift()
   memorySeriesData.push(systemData.memory.virtual?.percent || 0)
-  if (memorySeriesData.length > 60) {
-    memorySeriesData.shift()
-  }
   
   // 更新交换空间使用率数据
   let swapSeriesData = []
   if (option.series && option.series[1]) {
     swapSeriesData = [...option.series[1].data]
+  } else {
+    swapSeriesData = initDataArray(181)
   }
+  swapSeriesData.shift()
   swapSeriesData.push(systemData.memory.swap?.percent || 0)
-  if (swapSeriesData.length > 60) {
-    swapSeriesData.shift()
-  }
   
   charts.memorySwap.setOption({
-    xAxis: { data: xData },
+    xAxis: { 
+      data: timeLabels,
+      axisLabel: {
+        rotate: 45,
+        fontSize: 10,
+        interval: 29 // 每30秒显示一个标签
+      }
+    },
     series: [
       {
         name: '内存使用率',
@@ -954,7 +975,7 @@ const handleLogout = () => {
 }
 
 // 修改更新间隔设置
-const updateInterval = ref(5001) // 默认5秒
+const updateInterval = ref(1000) // 默认1秒
 
 // 重启定时更新
 const restartUpdating = () => {
