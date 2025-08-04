@@ -3,6 +3,9 @@ import subprocess
 import os
 from typing import Dict, Any
 from .base_monitor import BaseSystemMonitor
+import logging  # 新增：用于错误日志
+
+logger = logging.getLogger(__name__)  # 配置日志
 
 class LinuxSystemMonitor(BaseSystemMonitor):
     """Linux系统监控器"""
@@ -25,43 +28,97 @@ class LinuxSystemMonitor(BaseSystemMonitor):
                     'min': cpu_freq.min,
                     'max': cpu_freq.max
                 }
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"获取CPU频率失败: {e}")
         
+        # 解析 /proc/cpuinfo 获取详细CPU信息
+        try:
+            with open('/proc/cpuinfo', 'r') as f:
+                cpuinfo = f.read()
+            
+            # 解析CPU信息
+            cpu_model = 'Unknown'
+            cpu_cores = 0
+            siblings = 0
+            vendor_id = 'Unknown'
+            cpu_family = 'Unknown'
+            
+            lines = cpuinfo.split('\n')
+            for line in lines:
+                if line.strip():
+                    if line.startswith('model name'):
+                        cpu_model = line.split(':', 1)[1].strip()
+                    elif line.startswith('cpu cores'):
+                        try:
+                            cpu_cores = int(line.split(':', 1)[1].strip())
+                        except ValueError:
+                            pass
+                    elif line.startswith('siblings'):
+                        try:
+                            siblings = int(line.split(':', 1)[1].strip())
+                        except ValueError:
+                            pass
+                    elif line.startswith('vendor_id'):
+                        vendor_id = line.split(':', 1)[1].strip()
+                    elif line.startswith('cpu family'):
+                        cpu_family = line.split(':', 1)[1].strip()
+            
+            # 更新CPU信息
+            cpu_info['model'] = cpu_model
+            cpu_info['brand'] = cpu_model  # 为了兼容前端显示
+            cpu_info['cores'] = cpu_cores
+            cpu_info['threads'] = siblings
+            cpu_info['vendor'] = vendor_id
+            cpu_info['family'] = cpu_family
+            
+            print(f"解析到的CPU信息: 型号={cpu_model}, 核心数={cpu_cores}, 线程数={siblings}")
+            
+        except Exception as e:
+            logger.error(f"解析/proc/cpuinfo失败: {e}")
+            cpu_info['model'] = 'Unknown'
+            cpu_info['brand'] = 'Unknown'
+            cpu_info['cores'] = 0
+            cpu_info['threads'] = 0
+    
         # 获取CPU温度（Linux特有）
         try:
             temps = psutil.sensors_temperatures()
             if temps:
                 cpu_info['temperature'] = temps
-        except:
-            pass
-        
+        except Exception as e:
+            logger.error(f"获取CPU温度失败: {e}")
+    
         return cpu_info
     
-    def get_memory_info(self) -> Dict[str, Any]:
+    def get_memory_info(self):
         """获取内存信息"""
-        memory = psutil.virtual_memory()
-        swap = psutil.swap_memory()
-        
-        return {
-            'virtual': {
-                'total': memory.total,
-                'available': memory.available,
-                'used': memory.used,
-                'free': memory.free,
-                'percent': memory.percent,
-                'active': getattr(memory, 'active', 0),
-                'inactive': getattr(memory, 'inactive', 0),
-                'buffers': getattr(memory, 'buffers', 0),
-                'cached': getattr(memory, 'cached', 0)
-            },
-            'swap': {
-                'total': swap.total,
-                'used': swap.used,
-                'free': swap.free,
-                'percent': swap.percent
+        try:
+            memory = psutil.virtual_memory()
+            swap = psutil.swap_memory()
+            memory_info = {
+                'virtual': {
+                    'total': memory.total,
+                    'available': memory.available,
+                    'used': memory.used,
+                    'free': memory.free,
+                    'percent': memory.percent,
+                    'active': getattr(memory, 'active', 0),
+                    'inactive': getattr(memory, 'inactive', 0),
+                    'buffers': getattr(memory, 'buffers', 0),
+                    'cached': getattr(memory, 'cached', 0)
+                },
+                'swap': {
+                    'total': swap.total,
+                    'used': swap.used,
+                    'free': swap.free,
+                    'percent': swap.percent
+                }
             }
-        }
+            # print(memory_info)  # 打印返回的数据以便调试
+            return memory_info
+        except Exception as e:
+            logger.error(f"获取内存信息失败: {e}")
+            return {'virtual': {}, 'swap': {}}
     
     def get_disk_info(self) -> Dict[str, Any]:
         """获取磁盘信息"""
@@ -80,8 +137,10 @@ class LinuxSystemMonitor(BaseSystemMonitor):
                     'free': usage.free,
                     'percent': (usage.used / usage.total) * 100 if usage.total > 0 else 0
                 })
-            except PermissionError:
-                continue
+            except PermissionError as e:
+                logger.warning(f"权限错误，无法访问分区 {partition.mountpoint}: {e}")
+            except Exception as e:
+                logger.error(f"获取分区信息失败: {e}")
         
         # 获取磁盘IO信息
         try:
@@ -93,8 +152,8 @@ class LinuxSystemMonitor(BaseSystemMonitor):
                     'read_count': disk_io.read_count,
                     'write_count': disk_io.write_count
                 }
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"获取磁盘IO信息失败: {e}")
         
         return disk_info
     
@@ -113,8 +172,8 @@ class LinuxSystemMonitor(BaseSystemMonitor):
                         'netmask': addr.netmask,
                         'broadcast': addr.broadcast
                     })
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"获取网络接口信息失败: {e}")
         
         # 获取网络IO信息
         try:
@@ -126,8 +185,8 @@ class LinuxSystemMonitor(BaseSystemMonitor):
                     'packets_sent': net_io.packets_sent,
                     'packets_recv': net_io.packets_recv
                 }
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"获取网络IO信息失败: {e}")
         
         return network_info
     

@@ -45,12 +45,12 @@
                 </div>
                 <div class="stat-info">
                   <h3>内存使用率</h3>
-                  <p class="stat-value">{{ systemData.memory?.percent?.toFixed(1) || 0 }}%</p>
+                  <p class="stat-value">{{ systemData.memory?.virtual?.percent?.toFixed(1) || 0 }}%</p>
                   <p class="stat-detail">
-                    {{ formatBytes(systemData.memory?.used || 0) }} / 
-                    {{ formatBytes(systemData.memory?.total || 0) }}
+                    {{ formatBytes(systemData.memory?.virtual?.used || 0) }} / 
+                    {{ formatBytes(systemData.memory?.virtual?.total || 0) }}
                   </p>
-                  <p class="stat-available">可用: {{ formatBytes(systemData.memory?.available || 0) }}</p>
+                  <p class="stat-available">可用: {{ formatBytes(systemData.memory?.virtual?.available || 0) }}</p>
                 </div>
               </div>
             </el-card>
@@ -65,6 +65,10 @@
                 <div class="stat-info">
                   <h3>磁盘使用率</h3>
                   <p class="stat-value">{{ systemData.disk?.percent?.toFixed(1) || 0 }}%</p>
+                  <p class="stat-detail">  <!-- 新增 -->
+                    {{ formatBytes(systemData.disk?.partitions?.[0]?.used || 0) }} / 
+                    {{ formatBytes(systemData.disk?.partitions?.[0]?.total || 0) }}
+                  </p>
                 </div>
               </div>
             </el-card>
@@ -211,6 +215,10 @@ const networkSpeed = ref(0)
 let charts = {}
 let updateTimer = null
 
+// 添加网络数据历史记录
+let lastNetworkData = null
+let lastNetworkTime = null
+
 // 初始化图表
 const initCharts = () => {
   // CPU使用率趋势图
@@ -251,6 +259,7 @@ const initCharts = () => {
   
   // 内存使用饼图
   charts.memory = echarts.init(memoryChart.value)
+
   charts.memory.setOption({
     title: { 
       text: '内存使用情况', 
@@ -308,10 +317,18 @@ const updateCharts = () => {
   }
   
   // 更新内存饼图
-  if (charts.memory && systemData.memory) {
-    const used = systemData.memory.used || 0
-    const available = systemData.memory.available || 0
-    const total = systemData.memory.total || 0
+  if (charts.memory && systemData.memory?.virtual) {
+    const used = systemData.memory.virtual.used || 0
+    const available = systemData.memory.virtual.available || 0
+    const total = systemData.memory.virtual.total || 0
+    
+    // 添加调试打印
+    console.log('Memory Data:', {
+      used: formatBytes(used),
+      available: formatBytes(available),
+      total: formatBytes(total),
+      percent: ((used / total) * 100).toFixed(1) + '%'
+    });
     
     charts.memory.setOption({
       title: {
@@ -372,6 +389,36 @@ const fetchSystemStatus = async () => {
       }
     })
     if (response.data.success) {
+      // 添加调试打印：查看原始响应数据
+      console.log('API Response Memory:', response.data.data.memory)
+      
+      // 计算网络速度
+      const currentTime = Date.now()
+      const currentNetworkData = response.data.data.network?.io
+      
+      if (lastNetworkData && lastNetworkTime && currentNetworkData) {
+        const timeDiff = (currentTime - lastNetworkTime) / 1000 // 转换为秒
+        const bytesSentDiff = (currentNetworkData.bytes_sent || 0) - (lastNetworkData.bytes_sent || 0)
+        const bytesRecvDiff = (currentNetworkData.bytes_recv || 0) - (lastNetworkData.bytes_recv || 0)
+        
+        // 计算总速度（上传+下载）
+        const totalSpeed = (bytesSentDiff + bytesRecvDiff) / timeDiff
+        networkSpeed.value = Math.max(0, totalSpeed) // 确保不为负数
+        
+        console.log('Network Speed Calculation:', {
+          timeDiff,
+          bytesSentDiff,
+          bytesRecvDiff,
+          totalSpeed: formatBytes(totalSpeed) + '/s'
+        })
+      }
+      
+      // 更新历史数据
+      if (currentNetworkData) {
+        lastNetworkData = { ...currentNetworkData }
+        lastNetworkTime = currentTime
+      }
+      
       Object.assign(systemData, response.data.data)
       updateCharts()
     }
